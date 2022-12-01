@@ -14,7 +14,7 @@ Pour fonctionner un **compte anti-captcha avec des fonds** est nécessaire (il e
 | -s<br> --save                                      | Sauvegarde les liens obtenu dans un fichier liens.txt                                 |
 ### Exemple :
 ```console
-$ node main.js -v -s -l lien1,lien2
+$ node main.js -v -s -l "lien1,lien2"
 ```
 
 ## Utilisation via import
