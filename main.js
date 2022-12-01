@@ -1,36 +1,47 @@
-const pup = require("puppeteer");
-const ac = require("@antiadmin/anticaptchaofficial");
-const {antiCaptchaKey} = require("./anticaptchakey.json");
-
-ac.setAPIKey(antiCaptchaKey);
-const url = '';
+const getLink = require("./function/getLink.js");
+const fs = require("fs");
 
 (async () => {
+    var args = process.argv.slice(2);
+    var links = [];
+    var linkflag = false;
+    var verbose = false;
+    for (i of args) {
+        if (linkflag) {
+            links = links.concat(i.replace(" ", "").trim().split(","));
+            linkflag = false;
+        }
+        else if (i === '-l' || i === '--link') {
+            linkflag = true;
+        }
+        else if (i === '-v' || i === '--verbose') {
+            verbose = true;
+        }
+        else if (i === '-s' || i === '--save') {
+            var save = true;
+        }
+    }
+    if (links.length === 0) {
+        console.log("Aucun lien fourni");
+        return;
+    }
+    let liens = await getLink(links, verbose);
     
-    console.log("Résolution du captcha");
-    let token = await ac.solveTurnstileProxyless(url, '0x4AAAAAAABKK-fmValRCMjW');
-    console.log("Captcha résolu : " + token);
-
-    console.log("Ouverture du navigateur");
-    const browser = await pup.launch();
-    const page = await browser.newPage();
-    await page.goto(url);
-
-    console.log("Remplissage du captcha");
-    await page.waitForSelector('[id^="cf-chl-widget-"][id*="_response"]');
-    await page.evaluate(`document.querySelector('[id^="cf-chl-widget-"][id*="_response"]')["value"] = "${token}";`);
-
-    console.log("Validation du captcha");
-    await page.evaluate('document.getElementById("subButton").removeAttribute("disabled")');
-    await Promise.all([
-        page.click('#subButton', button => button.click()),
-        page.waitForNavigation({ waitUntil: "networkidle0" })
-    ]);
-
-    console.log("Récupération du lien");
-    let lien = await page.evaluate('document.querySelectorAll("div.col-md-12.urls.text-center")[0]["innerHTML"]');
-    lien = lien.replace(/<[^>]*>/g, "").replace("-->", "").trim();
-
-    console.log("Lien : " + lien);
-    await browser.close();
+    console.log(liens);
+    if (save) {
+        fs.open("liens.txt", "w", (err, fd) => {
+            if (err) {
+                console.log("Erreur lors de l'ouverture du fichier");
+                return;
+            }
+            fs.write(fd, liens.join("\r"), (err) => {
+                if (err) {
+                    console.log("Erreur lors de l'écriture du fichier");
+                    return;
+                }
+                console.log("Fichier écrit");
+            }
+            );
+        })
+    }
 })();
