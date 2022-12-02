@@ -1,4 +1,4 @@
-const getLink = require("./function/getLink.js");
+const crawler = require("./function/dl-protect_crawler.js");
 const fs = require("fs");
 
 (async () => {
@@ -25,7 +25,7 @@ const fs = require("fs");
         console.log("Aucun lien fourni");
         return;
     }
-    let liens = await getLink(links, verbose);
+    let liens = await crawler(links, verbose);
     
     console.log(liens);
     if (save) {
