@@ -3,7 +3,7 @@ const ac = require("@antiadmin/anticaptchaofficial");
 const { antiCaptchaKey } = require("../anticaptchakey.json");
 
 
-async function getLink(urls, verbose = false) {
+async function dl_protect_crawler(urls, verbose = false) {
     /*
     Récupère les liens de téléchargement des liens dl-protect fourni
     Prends un array d'url en entrée
@@ -18,14 +18,14 @@ async function getLink(urls, verbose = false) {
     ac.setAPIKey(antiCaptchaKey);
     for (let url of urls) {
         try {
-            console.log("Résolution du captcha");
-            let token = await ac.solveTurnstileProxyless(url, '0x4AAAAAAABKK-fmValRCMjW');
-            console.log("Captcha résolu : " + token);
-
             console.log("Ouverture du navigateur");
-            const browser = await pup.launch();
-            const page = await browser.newPage();
+            var browser = await pup.launch();
+            var page = await browser.newPage();
             await page.goto(url);
+
+            console.log("Résolution du captcha");
+            var token = await ac.solveTurnstileProxyless(url, '0x4AAAAAAABKK-fmValRCMjW');
+            console.log("Captcha résolu : " + token);
 
             console.log("Remplissage du captcha");
             await page.waitForSelector('[id^="cf-chl-widget-"][id*="_response"]');
@@ -55,5 +55,5 @@ async function getLink(urls, verbose = false) {
     return links;
 }
 
-module.exports = getLink;
+module.exports = dl_protect_crawler;
 
