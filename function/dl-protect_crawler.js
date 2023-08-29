@@ -1,7 +1,32 @@
-const pup = require("puppeteer");
-const ac = require("@antiadmin/anticaptchaofficial");
-const { antiCaptchaKey } = require("../anticaptchakey.json");
+const { Cluster } = require("puppeteer-cluster");
+const { twoCaptchaKey, maxConcurrency } = require("../config.json");
 
+async function getCaptcha(URL, sitekey, apikey) {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    var tokenWait = await fetch("https://2captcha.com/in.php", {
+        method: "POST",
+        body: new URLSearchParams({
+            key: apikey,
+            method: "turnstile",
+            sitekey: sitekey,
+            pageurl: URL,
+            json: "1",
+        }),
+    }).then((res) => res.json());
+    console.log(tokenWait);
+    do {
+        await sleep(5000);
+        var token = await fetch(
+            `https://2captcha.com/res.php?key=${apikey}&action=get&id=${tokenWait.request}`
+        ).then((res) => res.text());
+        console.log(token);
+    } while (token == "CAPCHA_NOT_READY");
+    console.log(token);
+    if (token.startsWith("ERROR")) {
+        throw new Error(token);
+    }
+    return token.split("|")[1];
+}
 
 async function dl_protect_crawler(urls, verbose = false) {
     /*
@@ -11,49 +36,85 @@ async function dl_protect_crawler(urls, verbose = false) {
     Retourne un array de lien de téléchargement
     */
     if (!verbose) {
-        console.log = function () { };
-        ac.shutUp();
+        console.log = function () {};
     }
     var links = [];
-    ac.setAPIKey(antiCaptchaKey);
+
+    const cluster = await Cluster.launch({
+        concurrency: Cluster.CONCURRENCY_CONTEXT,
+        maxConcurrency: maxConcurrency,
+        retryLimit: 3,
+        puppeteerOptions: {
+            headless: "new",
+        },
+        timeout: 60000,
+    });
+    await cluster.task(async ({ page, data: url }) => {
+        await page.goto(url);
+        console.log("Résolution du captcha");
+        var token = await getCaptcha(
+            url,
+            "0x4AAAAAAABKK-fmValRCMjW",
+            twoCaptchaKey
+        );
+        console.log("Captcha résolu : " + token);
+
+        console.log("Remplissage du captcha");
+        await page.waitForSelector('[id^="cf-chl-widget-"][id*="_response"]');
+        await page.evaluate(
+            `document.querySelector('[id^="cf-chl-widget-"][id*="_response"]')["value"] = "${token}";`
+        );
+
+        console.log("Validation du captcha");
+        const elementsToRemove = await page.$$(`body > :not(.container)`);
+
+        for (let element of elementsToRemove) {
+            await element.evaluate((el) => el.remove());
+        }
+
+        await page.evaluate(
+            'document.getElementById("subButton").removeAttribute("disabled")'
+        );
+        await Promise.all([
+            page.click("#subButton", (button) => button.click()),
+            page.waitForNavigation({ waitUntil: "networkidle0" }),
+        ]);
+
+        console.log("Récupération du lien");
+        let lien = await page.evaluate(
+            'document.querySelectorAll("div.col-md-12.urls.text-center")[0]["innerHTML"]'
+        );
+        lien = lien
+            .replace(/<[^>]*>/g, "")
+            .replace("-->", "")
+            .trim();
+
+        console.log("Lien : " + lien);
+        links.push(lien);
+    });
+
+    cluster.on("taskerror", (err, data, willRetry) => {
+        if (willRetry) {
+            console.warn(
+                `Encountered an error while crawling ${data}. ${err.message}\nThis job will be retried`
+            );
+        } else {
+            console.error(`Failed to crawl ${data}: ${err.message}`);
+        }
+    });
+
     for (let url of urls) {
-        try {
-            console.log("Ouverture du navigateur");
-            var browser = await pup.launch();
-            var page = await browser.newPage();
-            await page.goto(url);
-
-            console.log("Résolution du captcha");
-            var token = await ac.solveTurnstileProxyless(url, '0x4AAAAAAABKK-fmValRCMjW');
-            console.log("Captcha résolu : " + token);
-
-            console.log("Remplissage du captcha");
-            await page.waitForSelector('[id^="cf-chl-widget-"][id*="_response"]');
-            await page.evaluate(`document.querySelector('[id^="cf-chl-widget-"][id*="_response"]')["value"] = "${token}";`);
-
-            console.log("Validation du captcha");
-            await page.evaluate('document.getElementById("subButton").removeAttribute("disabled")');
-            await Promise.all([
-                page.click('#subButton', button => button.click()),
-                page.waitForNavigation({ waitUntil: "networkidle0" })
-            ]);
-
-            console.log("Récupération du lien");
-            let lien = await page.evaluate('document.querySelectorAll("div.col-md-12.urls.text-center")[0]["innerHTML"]');
-            lien = lien.replace(/<[^>]*>/g, "").replace("-->", "").trim();
-
-            console.log("Lien : " + lien);
-            links.push(lien);
-            console.log("Fermeture du navigateur");
-            await browser.close();
-        } catch (err) {
-            console.log("Erreur, le lien sera retraîté");
-            await page.screenshot({ path: 'error.png' });
-            urls.push(url); // On rajoute l'url à la liste des urls à traiter
+        if (url.startsWith("https://dl-protect.")) {
+            cluster.queue(url);
+        } else {
+            console.log("Lien non supporté : " + url);
         }
     }
+    // Shutdown after everything is done
+    await cluster.idle();
+    await cluster.close();
+
     return links;
 }
 
 module.exports = dl_protect_crawler;
-

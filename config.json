@@ -1,0 +1,4 @@
+{
+    "twoCaptchaKey": "YOUR_TWO_CAPTCHA_API_KEY",
+    "maxConcurrency": 5
+}

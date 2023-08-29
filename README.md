@@ -2,7 +2,7 @@
 Permet d'obtenir un lien protégé par dl-protect à l'aide de anti-captcha
 
 ## Configuration : 
-Pour fonctionner un **compte anti-captcha avec des fonds** est nécessaire (il est sûrement possible d'un autre service anti-captcha avec quelque modification). Le token doit être renseigné dans le fichier **"anticaptchakey.json"**
+Pour fonctionner un **compte 2Captcha avec des fonds** est nécessaire (il est sûrement possible d'un autre service anti-captcha avec quelque modification). Le token doit être renseigné dans le fichier **"anticaptchakey.json"**
 
 ## Utilisation via cli :
 
